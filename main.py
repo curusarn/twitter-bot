@@ -42,6 +42,12 @@ def main():
     parser.add_argument("-c", "--config", action="store", default=None,
                         help="Path to config (default <{0}>)"
                              .format(config_path))
+    parser.add_argument("-r", "--retweet", action="store", default=None,
+                        help="Retweet last N tweets from specified USER")
+    parser.add_argument("-n", "--number", action="store", type=int, default=1,
+                        help="Number of tweets (used by various options)") 
+    parser.add_argument("-t", "--test",
+                        help="Tweet N test tweets")
 
     args = parser.parse_args()
     if args.config:
@@ -94,8 +100,22 @@ def main():
     ###########
     # AUTH done
 
-    api.update_status("test: {0}".format(random.randint(1,1000)))
+    if args.test:
+        for i in range(0, args.number):
+            api.update_status("test: {0}".format(random.randint(1,1000)))
+
+    if args.retweet:
+        try:
+            for x, status in enumerate(api.user_timeline(args.retweet)):
+                if x >= args.number:
+                    break
+                print(x)
+                api.retweet(status.id)
+        except TweepError as e:
+            print("TweepError while retweeting - <{0}>".format(e))
+            pass
 
 
 if __name__ == "__main__":
     main()
+
