@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
  
 import argparse
+import collections
 import configparser
 import os
 import random
+import string
 import sys
 import time
 import tweepy
@@ -35,6 +37,52 @@ def writeKeys(path, key, secret):
     raise Exception("Could not create file <{0}>".format(path))
 
 
+def getKeyword(text):
+    keywords = ["normal", "well" "investigating", "monitoring", ""]
+    if "normal" in text:
+        return "normal"
+
+
+def slimJson(json, keys=None):
+    if not keys:
+        keys = ["text", "created_at"] 
+    # TODO add ["user"]["screen_name"]
+
+    slim_json = {}
+    for key in keys:
+        slim_json[key] = json[key] 
+
+    return slim_json
+
+
+def preprocess(text):
+    translator = str.maketrans('\n', ' ', string.punctuation)
+    return text.translate(translator).lower()
+
+
+def getNGrams(text, n):
+    text = text.split()
+    i = 0
+    for st, word in enumerate(text):
+        end = st + n
+        if end > len(text):
+            break
+        yield " ".join(text[st:end])
+
+    
+def aggregateNGrams(jsons, n=1):
+    agg = collections.defaultdict(list) 
+    
+    for json in jsons:
+        text = json["text"]
+        text_nice = preprocess(text) 
+        json["text_nice"] = text_nice
+        for ngram in getNGrams(text_nice, n):
+            agg[ngram].append(json)
+    
+    return sorted(agg.items(), key=lambda x: len(x[1]), reverse=True)
+
+
 def main():
     config_path="./twitter-bot.ini"
 
@@ -42,12 +90,12 @@ def main():
     parser.add_argument("-c", "--config", action="store", default=None,
                         help="Path to config (default <{0}>)"
                              .format(config_path))
-    parser.add_argument("-r", "--retweet", action="store", default=None,
-                        help="Retweet last N tweets from specified USER")
-    parser.add_argument("-n", "--number", action="store", type=int, default=1,
-                        help="Number of tweets (used by various options)") 
-    parser.add_argument("-t", "--test",
-                        help="Tweet N test tweets")
+    #parser.add_argument("-l", "--limit", action="store", type=int, default=None,
+    #                    help="Limit number of tweets") 
+    #parser.add_argument("-n", "--ngram", action="store", type=int, default=1,
+    #                    help="Use Ngrams") 
+    #parser.add_argument("-u", "--user", action="store", default="githubstatus",
+    #                    help="Twitter user") 
 
     args = parser.parse_args()
     if args.config:
@@ -100,20 +148,21 @@ def main():
     ###########
     # AUTH done
 
-    if args.test:
-        for i in range(0, args.number):
-            api.update_status("test: {0}".format(random.randint(1,1000)))
+    print("[DBG]: Auth done")
 
-    if args.retweet:
-        try:
-            for x, status in enumerate(api.user_timeline(args.retweet)):
-                if x >= args.number:
-                    break
-                print(x)
-                api.retweet(status.id)
-        except TweepError as e:
-            print("TweepError while retweeting - <{0}>".format(e))
-            pass
+    tweets = tweepy.Cursor(api.user_timeline,id='gitlabstatus').items()
+    jsons = map(lambda x: x._json, tweets)
+    jsons = list(map(slimJson, jsons))
+
+    #jsons = jsons[:10]
+    aggregated_by_words = aggregateNGrams(jsons, 3)
+
+    print("[DBG]: Aggregation done")
+
+    for key, group in aggregated_by_words:
+        for json in group:
+            text = json["text_nice"]
+            print("{0} | {1} | {2}".format(len(group), key, text))
 
 
 if __name__ == "__main__":
