@@ -92,10 +92,10 @@ def main():
                              .format(config_path))
     #parser.add_argument("-l", "--limit", action="store", type=int, default=None,
     #                    help="Limit number of tweets") 
-    #parser.add_argument("-n", "--ngram", action="store", type=int, default=1,
-    #                    help="Use Ngrams") 
-    #parser.add_argument("-u", "--user", action="store", default="githubstatus",
-    #                    help="Twitter user") 
+    parser.add_argument("-n", "--ngram", action="store", type=int, default=1,
+                        help="Use Ngrams") 
+    parser.add_argument("-u", "--user", action="store", default="githubstatus",
+                        help="Twitter user") 
 
     args = parser.parse_args()
     if args.config:
@@ -150,12 +150,12 @@ def main():
 
     print("[DBG]: Auth done")
 
-    tweets = tweepy.Cursor(api.user_timeline,id='gitlabstatus').items()
+    tweets = tweepy.Cursor(api.user_timeline,id=args.user).items()
     jsons = map(lambda x: x._json, tweets)
     jsons = list(map(slimJson, jsons))
 
     #jsons = jsons[:10]
-    aggregated_by_words = aggregateNGrams(jsons, 3)
+    aggregated_by_words = aggregateNGrams(jsons, args.ngram)
 
     print("[DBG]: Aggregation done")
 
